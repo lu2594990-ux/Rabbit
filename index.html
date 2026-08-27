@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>推文编辑器</title>
+
+<style>
+/* =========================
+   基础重置
+========================= */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+}
+
+:root {
+  --page-bg: #fffffe;
+  --card-bg: #fffffe;
+  --text-color: #000000;
+  --text-body: #1c1c1e;
+  --text-secondary: #536471;
+  --follow-bg: #000000;
+  --follow-text: #ffffff;
+
+  --editor-bg: #f5f5f5;
+  --editor-border: #e0e0e0;
+  --editor-accent: #1d9bf0;
+  --editor-card: #ffffff;
+}
+
+body {
+  background: var(--editor-bg);
+  color: var(--text-color);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body.dark {
+  --page-bg: #000000;
+  --card-bg: #000000;
+  --text-color: #ffffff;
+  --text-body: #e5e5e7;
+  --text-secondary: #536471;
+  --follow-bg: #ffffff;
+  --follow-text: #000000;
+
+  --editor-bg: #0a0a0a;
+  --editor-border: #2a2a2a;
+  --editor-card: #161616;
+}
+
+
+/* =========================
+   编辑模式 —— 全屏编辑面板
+========================= */
+
+.editor-panel {
+  width: 100%;
+  min-height: 100vh;
+  padding: 20px 16px 100px 16px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  background: var(--editor-bg);
+}
+
+/* 预览模式下隐藏编辑面板 */
+body.preview-mode .editor-panel {
+  display: none;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.editor-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.editor-section {
+  background: var(--editor-card);
+  border: 1px solid var(--editor-border);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.editor-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editor-row label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.editor-row input[type="text"],
+.editor-row input[type="number"],
+.editor-row input[type="url"],
+.editor-row select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--editor-border);
+  border-radius: 10px;
+  background: var(--editor-bg);
+  color: var(--text-color);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.editor-row input:focus,
+.editor-row select:focus {
+  border-color: var(--editor-accent);
+}
+
+.editor-row textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid var(--editor-border);
+  border-radius: 10px;
+  background: var(--editor-bg);
+  color: var(--text-color);
+  font-size: 15px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.editor-row textarea:focus {
+  border-color: var(--editor-accent);
+}
+
+.editor-inline {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.editor-inline .editor-row {
+  flex: 1;
+}
+
+/* 开关 */
+.editor-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editor-toggle label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #ccc;
+  border-radius: 26px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--editor-accent);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(18px);
+}
+
+/* 高亮 */
+.highlight-tip {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.highlight-tip code {
+  background: var(--editor-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.highlight-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.highlight-btn {
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.highlight-btn:hover {
+  transform: scale(1.1);
+}
+
+.highlight-btn.active {
+  border-color: var(--text-color);
+}
+
+/* 操作按钮 */
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action-btn:active {
+  transform: scale(0.97);
+}
+
+.btn-theme {
+  background: var(--text-color);
+  color: var(--page-bg);
+}
+
+.btn-preview {
+  background: var(--editor-accent);
+  color: #fff;
+}
+
+.action-btn-row {
+  display: flex;
+  gap: 10px;
+}
+
+.action-btn-row .action-btn {
+  flex: 1;
+}
+
+
+/* =========================
+   底部悬浮预览按钮
+========================= */
+
+.floating-preview-btn {
+  position: fixed;
+  z-index: 9999;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  padding: 14px 32px;
+  border: none;
+  border-radius: 50px;
+  background: var(--editor-accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+
+  box-shadow: 0 4px 20px rgba(29, 155, 240, 0.4);
+
+  transition: opacity 0.2s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.floating-preview-btn:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+/* 预览模式下隐藏 */
+body.preview-mode .floating-preview-btn {
+  display: none;
+}
+
+
+/* =========================
+   预览模式 —— 推文页面全屏
+========================= */
+
+#tweetPage {
+  display: none;
+}
+
+body.preview-mode #tweetPage {
+  display: flex;
+  flex-direction: column;
+  background: var(--page-bg);
+  overflow: hidden;
+  z-index: 10000;
+  /* 位置和缩放由 JS 控制，这里不写 */
+}
+
+
+/* 返回编辑按钮（预览模式才显示） */
+.back-to-edit {
+  display: none;
+}
+
+body.preview-mode .back-to-edit {
+  display: flex;
+  position: fixed;
+  z-index: 10001;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  padding: 10px 24px;
+  border: none;
+  border-radius: 50px;
+
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+
+  opacity: 1;
+  transition: opacity 0.3s;
+
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 3秒后自动淡出，点一下屏幕又出来 */
+body.preview-mode .back-to-edit.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* =========================
+   推文页面内部样式（和之前一致）
+========================= */
+
+.top-nav-wrapper {
+  z-index: 10;
+  width: 100%;
+  flex-shrink: 0;
+  padding: 14px 30px 0 30px;    /* ← 上边距从30改成14 */
+  background: var(--page-bg);
+}
+
+
+.top-nav-bar {
+  position: relative;
+  width: 100%;
+  height: 50px;
+  overflow: hidden;
+}
+
+.top-nav-img {
+  width: 108%;
+  max-width: none;
+  height: auto;
+  display: block;
+  margin-left: -4%;
+  pointer-events: none;
+}
+
+.top-nav-title {
+  position: absolute;
+  z-index: 5;
+  top: 60%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-color);
+  font-size: 16.5px;
+  font-weight: 550;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.top-nav-grok {
+  position: absolute;
+  z-index: 5;
+  top: 60%;
+  right: 11%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.top-nav-grok svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: var(--text-color);
+}
+
+.scroll-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 30px 30px 30px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tweet-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 14px 0;
+  color: var(--text-color);
+  background: var(--card-bg);
+  overflow: visible;
+}
+
+.tweet-header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tweet-avatar {
+  position: relative;
+  z-index: 2;
+  width: 45px;
+  height: 45px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #e5e5ea;
+}
+
+.tweet-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.tweet-user-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tweet-display-name {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  color: var(--text-color);
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.tweet-verified {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.tweet-verified svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.tweet-handle {
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.tweet-header-action {
+  flex-shrink: 0;
+  margin-top: -15px;
+  margin-right: -5px;
+}
+
+.tweet-header-action-img {
+  width: 62px;
+  height: auto;
+  display: block;
+  pointer-events: none;
+}
+
+.tweet-translate-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+  margin-bottom: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 590;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.tweet-translate-hint-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tweet-translate-hint-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: var(--text-secondary);
+}
+
+.tweet-body {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin-bottom: 5px;
+  color: var(--text-body);
+  font-size: 16px;
+  font-weight: 580;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tweet-body mark {
+  background: var(--hl-color, #fef08a);
+  color: inherit;
+  border-radius: 2px;
+  padding: 1px 0;
+  -webkit-text-fill-color: currentColor;
+}
+
+.tweet-rate-translation {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-top: 0px;
+  margin-bottom: 15px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 590;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.tweet-rate-icon {
+  width: 55px;
+  height: auto;
+  display: inline-block;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+.tweet-meta {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin-bottom: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 590;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.tweet-meta-views {
+  color: var(--text-color);
+  font-weight: 590;
+}
+
+.tweet-actions-bar {
+  position: relative;
+  z-index: 999;
+  width: 100%;
+  margin-top: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.tweet-actions-img {
+  position: relative;
+  z-index: 1000;
+  width: 102%;
+  max-width: none;
+  height: auto;
+  display: block;
+  margin-top: -18px;
+  margin-left: -1%;
+  pointer-events: none;
+}
+
+.tweet-actions-numbers {
+  position: absolute;
+  z-index: 1001;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.action-count {
+  position: absolute;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.action-count-reply    { top: 56%; left: 8%; }
+.action-count-retweet  { top: 56%; left: 31.5%; }
+.action-count-like     { top: 56%; left: 54.5%; }
+.action-count-bookmark { top: 56%; left: 78%; }
+
+.bottom-tab-bar {
+  z-index: 10;
+  width: 100%;
+  flex-shrink: 0;
+  padding: 0px 30px 2px 30px;   /* ← 下边距从10改成2 */
+  background: var(--page-bg);
+}
+
+.bottom-tab-img {
+  width: 108%;
+  max-width: none;
+  height: auto;
+  display: block;
+  margin-left: -4%;
+  pointer-events: none;
+}
+
+
+/* =========================
+   小屏微调
+========================= */
+
+@media (max-width: 430px) {
+  .top-nav-wrapper {
+    padding: 10px 20px 0 20px;   /* ← 上边距从24改成10 */
+  }
+  .scroll-content {
+    padding: 10px 20px 24px 20px;
+  }
+  .bottom-tab-bar {
+    padding: 0px 20px 2px 20px;  /* ← 下边距从8改成2 */
+  }
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- ==========================================
+     编辑面板（编辑模式显示，预览模式隐藏）
+========================================== -->
+<div class="editor-panel">
+
+  <div class="editor-header">
+    <h2>推文编辑器</h2>
+    <div class="action-btn-row" style="gap:8px; width: auto;">
+      <button class="action-btn btn-theme" id="btnTheme" style="padding:10px 16px; width:auto; font-size:14px;">🪽</button>
+    </div>
+  </div>
+
+  <!-- 用户信息 -->
+  <div class="editor-section">
+    <div class="editor-section-title">用户信息</div>
+
+    <div class="editor-row">
+      <label>头像链接</label>
+      <input type="url" id="editAvatar" value="https://s3.bmp.ovh/2026/07/01/Y4cTroE9.jpg" placeholder="粘贴头像图片地址">
+    </div>
+
+    <div class="editor-row">
+      <label>用户名</label>
+      <input type="text" id="editName" value="珩" placeholder="显示名称">
+    </div>
+
+    <div class="editor-row">
+      <label>用户 ID</label>
+      <input type="text" id="editHandle" value="@Wyatt_0112" placeholder="@username">
+    </div>
+
+    <div class="editor-toggle">
+      <label>显示蓝V认证</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editVerified" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- 翻译 -->
+  <div class="editor-section">
+    <div class="editor-section-title">翻译提示</div>
+
+    <div class="editor-toggle">
+      <label>显示翻译提示</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editShowTranslate" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="editor-row">
+      <label>翻译源语言</label>
+      <input type="text" id="editTransLang" value="英语" placeholder="如：英语、日语、韩语">
+    </div>
+
+    <div class="editor-toggle">
+      <label>显示"评价此翻译"</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editShowRate" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- 正文 -->
+  <div class="editor-section">
+    <div class="editor-section-title">正文内容</div>
+
+    <div class="editor-row">
+      <label>推文正文</label>
+      <textarea id="editBody" placeholder="在这里输入正文...">……我是闭着眼睛刷的，怎么不算半睡眠状态呢？</textarea>
+    </div>
+
+    <div class="editor-toggle">
+      <label>首行缩进（每段前空两格）</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editIndent">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="editor-inline">
+      <div class="editor-row">
+        <label>字号</label>
+        <input type="number" id="editFontSize" value="16" min="12" max="24" step="0.5">
+      </div>
+      <div class="editor-row">
+        <label>行高</label>
+        <input type="number" id="editLineHeight" value="1.55" min="1" max="3" step="0.05">
+      </div>
+      <div class="editor-row">
+        <label>字重</label>
+        <input type="number" id="editFontWeight" value="580" min="300" max="900" step="10">
+      </div>
+    </div>
+  </div>
+
+  <!-- 高亮 -->
+  <div class="editor-section">
+    <div class="editor-section-title">高亮标记</div>
+
+    <p class="highlight-tip">
+      在正文里用 <b>==文字==</b> 包裹要高亮的内容<br>
+      例如：<code>==闭着眼睛刷的==</code>
+    </p>
+
+    <div class="editor-row">
+      <label>高亮颜色</label>
+      <div class="highlight-toolbar">
+        <button class="highlight-btn active" data-color="#fef08a" style="background:#fef08a" title="黄色"></button>
+        <button class="highlight-btn" data-color="#bbf7d0" style="background:#bbf7d0" title="绿色"></button>
+        <button class="highlight-btn" data-color="#bfdbfe" style="background:#bfdbfe" title="蓝色"></button>
+        <button class="highlight-btn" data-color="#fecaca" style="background:#fecaca" title="红色"></button>
+        <button class="highlight-btn" data-color="#e9d5ff" style="background:#e9d5ff" title="紫色"></button>
+        <button class="highlight-btn" data-color="#fed7aa" style="background:#fed7aa" title="橙色"></button>
+        <button class="highlight-btn" data-color="#fce7f3" style="background:#fce7f3" title="粉色"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 互动数据 -->
+  <div class="editor-section">
+    <div class="editor-section-title">互动数据</div>
+
+    <div class="editor-inline">
+      <div class="editor-row">
+        <label>回复</label>
+        <input type="text" id="editReply" value="2" placeholder="0">
+      </div>
+      <div class="editor-row">
+        <label>转发</label>
+        <input type="text" id="editRetweet" value="5" placeholder="0">
+      </div>
+    </div>
+
+    <div class="editor-inline">
+      <div class="editor-row">
+        <label>点赞</label>
+        <input type="text" id="editLike" value="38" placeholder="0">
+      </div>
+      <div class="editor-row">
+        <label>书签</label>
+        <input type="text" id="editBookmark" value="12" placeholder="0">
+      </div>
+    </div>
+  </div>
+
+  <!-- 时间 -->
+  <div class="editor-section">
+    <div class="editor-section-title">时间与浏览</div>
+
+    <div class="editor-inline">
+      <div class="editor-row">
+        <label>时间</label>
+        <input type="text" id="editTime" value="08:19" placeholder="08:19">
+      </div>
+      <div class="editor-row">
+        <label>日期</label>
+        <input type="text" id="editDate" value="2026/7/1" placeholder="2026/7/1">
+      </div>
+    </div>
+
+    <div class="editor-row">
+      <label>浏览量</label>
+      <input type="text" id="editViews" value="483" placeholder="483">
+    </div>
+  </div>
+
+</div>
+<!-- 编辑面板结束 -->
+
+
+<!-- 悬浮预览按钮 -->
+<button class="floating-preview-btn" id="btnEnterPreview">
+  预览 & 截图
+</button>
+
+
+<!-- ==========================================
+     推文页面（预览模式全屏显示）
+========================================== -->
+<div id="tweetPage">
+
+  <div class="top-nav-wrapper">
+    <div class="top-nav-bar">
+      <img class="top-nav-img" src="https://s3.bmp.ovh/2026/08/27/WOBCCCaG.jpg" alt="">
+      <span class="top-nav-title">帖子</span>
+      <span class="top-nav-grok">
+        <svg viewBox="0 0 1024 1024">
+          <path d="M395.479 633.828L735.91 381.105C752.599 368.715 776.454 373.548 784.406 392.792C826.26 494.285 807.561 616.253 724.288 699.996C641.016 783.739 525.151 802.104 419.247 760.277L303.556 814.143C469.49 928.202 670.987 899.995 796.901 773.282C896.776 672.843 927.708 535.937 898.785 412.476L899.047 412.739C857.105 231.37 909.358 158.874 1016.4 10.6326C1018.93 7.11771 1021.47 3.60279 1024 0L883.144 141.651V141.212L395.392 633.916"/>
+          <path d="M325.226 695.251C206.128 580.84 226.662 403.776 328.285 301.668C403.431 226.097 526.549 195.254 634.026 240.596L749.454 186.994C728.657 171.88 702.007 155.623 671.424 144.2C533.19 86.9942 367.693 115.465 255.323 228.382C147.234 337.081 113.244 504.215 171.613 646.833C215.216 753.423 143.739 828.818 71.7385 904.916C46.2237 931.893 20.6216 958.87 0 987.429L325.139 695.339"/>
+        </svg>
+      </span>
+    </div>
+  </div>
+
+  <div class="scroll-content">
+    <article class="tweet-card">
+
+      <div class="tweet-header">
+        <div class="tweet-avatar">
+          <img id="previewAvatar" src="https://s3.bmp.ovh/2026/07/01/Y4cTroE9.jpg" alt="">
+        </div>
+        <div class="tweet-user-info">
+          <div class="tweet-display-name">
+            <span id="previewName">珩</span>
+            <span class="tweet-verified" id="previewVerified">
+              <svg viewBox="0 0 22 22" aria-hidden="true">
+                <path fill="#1D9BF0" d="M20.396 11c-.018-.646-.215-1.275-.57-1.816-.354-.54-.852-.972-1.438-1.246.223-.607.27-1.264.14-1.897-.131-.634-.437-1.218-.882-1.687-.47-.445-1.053-.75-1.687-.882-.633-.13-1.29-.083-1.897.14-.273-.587-.704-1.086-1.245-1.44S11.647 1.62 11 1.604c-.646.017-1.273.213-1.813.568s-.969.855-1.24 1.44c-.608-.223-1.267-.272-1.902-.14-.635.13-1.22.436-1.69.882-.445.47-.749 1.055-.878 1.69-.13.636-.08 1.297.144 1.907-.587.274-1.087.705-1.443 1.245-.356.54-.555 1.17-.574 1.817.02.647.218 1.276.574 1.817.356.54.856.972 1.443 1.245-.224.61-.273 1.271-.144 1.907.13.635.433 1.22.878 1.69.47.446 1.055.752 1.69.882.635.132 1.294.083 1.902-.14.272.587.702 1.087 1.24 1.44s1.167.551 1.813.568c.647-.017 1.277-.213 1.817-.568s.972-.854 1.245-1.44c.604.223 1.262.272 1.894.14.634-.13 1.22-.436 1.69-.882.445-.47.749-1.055-.144-1.908.588-.273 1.088-.704 1.444-1.244.354-.543.551-1.174.569-1.82ZM9.662 14.85l-3.429-3.428 1.293-1.302 2.072 2.072 4.4-4.794 1.347 1.246-5.683 6.206Z"/>
+              </svg>
+            </span>
+          </div>
+          <div class="tweet-handle" id="previewHandle">@Wyatt_0112</div>
+        </div>
+        <div class="tweet-header-action">
+          <img class="tweet-header-action-img" src="https://s3.bmp.ovh/2026/08/27/GYQFLxl3.jpg" alt="">
+        </div>
+      </div>
+
+      <div class="tweet-translate-hint" id="previewTranslateHint">
+        <span class="tweet-translate-hint-icon">
+          <svg viewBox="0 0 1024 1024">
+            <path d="M395.479 633.828L735.91 381.105C752.599 368.715 776.454 373.548 784.406 392.792C826.26 494.285 807.561 616.253 724.288 699.996C641.016 783.739 525.151 802.104 419.247 760.277L303.556 814.143C469.49 928.202 670.987 899.995 796.901 773.282C896.776 672.843 927.708 535.937 898.785 412.476L899.047 412.739C857.105 231.37 909.358 158.874 1016.4 10.6326C1018.93 7.11771 1021.47 3.60279 1024 0L883.144 141.651V141.212L395.392 633.916"/>
+            <path d="M325.226 695.251C206.128 580.84 226.662 403.776 328.285 301.668C403.431 226.097 526.549 195.254 634.026 240.596L749.454 186.994C728.657 171.88 702.007 155.623 671.424 144.2C533.19 86.9942 367.693 115.465 255.323 228.382C147.234 337.081 113.244 504.215 171.613 646.833C215.216 753.423 143.739 828.818 71.7385 904.916C46.2237 931.893 20.6216 958.87 0 987.429L325.139 695.339"/>
+          </svg>
+        </span>
+        <span id="previewTransLang">由 Grok 翻译自英语</span>
+      </div>
+
+      <div class="tweet-body" id="previewBody">……我是闭着眼睛刷的，怎么不算半睡眠状态呢？</div>
+
+      <div class="tweet-rate-translation" id="previewRate">
+        评价此翻译：
+        <img class="tweet-rate-icon" src="https://s3.bmp.ovh/2026/08/27/kSa6IGly.jpg" alt="">
+      </div>
+
+      <div class="tweet-meta">
+        <span id="previewTime">08:19</span> · <span id="previewDate">2026/7/1</span> ·
+        <span class="tweet-meta-views" id="previewViews">483</span>
+        次查看
+      </div>
+
+      <div class="tweet-actions-bar">
+        <img
+          class="tweet-actions-img"
+          data-light-src="https://s3.bmp.ovh/2026/07/01/w6x9UB9d.png"
+          data-dark-src="https://s3.bmp.ovh/2026/07/01/u5UTX6B5.png"
+          src="https://s3.bmp.ovh/2026/07/01/w6x9UB9d.png"
+          alt=""
+        >
+        <div class="tweet-actions-numbers">
+          <span class="action-count action-count-reply" id="previewReply">2</span>
+          <span class="action-count action-count-retweet" id="previewRetweet">5</span>
+          <span class="action-count action-count-like" id="previewLike">38</span>
+          <span class="action-count action-count-bookmark" id="previewBookmark">12</span>
+        </div>
+      </div>
+
+    </article>
+  </div>
+
+  <div class="bottom-tab-bar">
+    <img class="bottom-tab-img" src="https://s3.bmp.ovh/2026/08/27/YIPLZ5m9.jpg" alt="">
+  </div>
+
+</div>
+
+<!-- 返回编辑按钮 -->
+<button class="back-to-edit" id="btnBackEdit">
+  ← 返回编辑
+</button>
+
+
+<script>
+(function () {
+
+  /* ========== 获取元素 ========== */
+  var editAvatar        = document.getElementById('editAvatar');
+  var editName          = document.getElementById('editName');
+  var editHandle        = document.getElementById('editHandle');
+  var editVerified      = document.getElementById('editVerified');
+  var editShowTranslate = document.getElementById('editShowTranslate');
+  var editTransLang     = document.getElementById('editTransLang');
+  var editShowRate      = document.getElementById('editShowRate');
+  var editBody          = document.getElementById('editBody');
+  var editIndent        = document.getElementById('editIndent');
+  var editFontSize      = document.getElementById('editFontSize');
+  var editLineHeight    = document.getElementById('editLineHeight');
+  var editFontWeight    = document.getElementById('editFontWeight');
+  var editReply         = document.getElementById('editReply');
+  var editRetweet       = document.getElementById('editRetweet');
+  var editLike          = document.getElementById('editLike');
+  var editBookmark      = document.getElementById('editBookmark');
+  var editTime          = document.getElementById('editTime');
+  var editDate          = document.getElementById('editDate');
+  var editViews         = document.getElementById('editViews');
+
+  var previewAvatar        = document.getElementById('previewAvatar');
+  var previewName          = document.getElementById('previewName');
+  var previewHandle        = document.getElementById('previewHandle');
+  var previewVerified      = document.getElementById('previewVerified');
+  var previewTranslateHint = document.getElementById('previewTranslateHint');
+  var previewTransLang     = document.getElementById('previewTransLang');
+  var previewRate          = document.getElementById('previewRate');
+  var previewBody          = document.getElementById('previewBody');
+  var previewReply         = document.getElementById('previewReply');
+  var previewRetweet       = document.getElementById('previewRetweet');
+  var previewLike          = document.getElementById('previewLike');
+  var previewBookmark      = document.getElementById('previewBookmark');
+  var previewTime          = document.getElementById('previewTime');
+  var previewDate          = document.getElementById('previewDate');
+  var previewViews         = document.getElementById('previewViews');
+
+  /* ========== 高亮颜色 ========== */
+  var highlightColor = '#fef08a';
+
+  document.querySelectorAll('.highlight-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.highlight-btn').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      highlightColor = btn.getAttribute('data-color');
+      updatePreview();
+    });
+  });
+
+  /* ========== 正文处理 ========== */
+  function processBody(raw) {
+    var text = raw
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    text = text.replace(/==(.+?)==/g, function (m, p1) {
+      return '<mark style="--hl-color:' + highlightColor + '">' + p1 + '</mark>';
+    });
+
+    if (editIndent.checked) {
+      text = text.split('\n').map(function (line) {
+        return line.trim() === '' ? line : '\u3000\u3000' + line;
+      }).join('\n');
+    }
+
+    return text;
+  }
+
+  /* ========== 总更新 ========== */
+  function updatePreview() {
+    if (editAvatar.value.trim()) previewAvatar.src = editAvatar.value.trim();
+    previewName.textContent = editName.value || '用户名';
+
+    var handle = editHandle.value.trim();
+    if (handle && handle.charAt(0) !== '@') handle = '@' + handle;
+    previewHandle.textContent = handle || '@username';
+
+    previewVerified.style.display = editVerified.checked ? '' : 'none';
+    previewTranslateHint.style.display = editShowTranslate.checked ? '' : 'none';
+    previewTransLang.textContent = '由 Grok 翻译自' + (editTransLang.value || '英语');
+    previewRate.style.display = editShowRate.checked ? '' : 'none';
+
+    previewBody.innerHTML = processBody(editBody.value);
+    previewBody.style.fontSize = editFontSize.value + 'px';
+    previewBody.style.lineHeight = editLineHeight.value;
+    previewBody.style.fontWeight = editFontWeight.value;
+
+    previewReply.textContent    = editReply.value || '';
+    previewRetweet.textContent  = editRetweet.value || '';
+    previewLike.textContent     = editLike.value || '';
+    previewBookmark.textContent = editBookmark.value || '';
+
+    previewTime.textContent  = editTime.value || '00:00';
+    previewDate.textContent  = editDate.value || '2026/1/1';
+    previewViews.textContent = editViews.value || '0';
+  }
+
+  /* ========== 绑定输入 ========== */
+  document.querySelectorAll('.editor-panel input, .editor-panel textarea, .editor-panel select').forEach(function (el) {
+    el.addEventListener('input', updatePreview);
+    el.addEventListener('change', updatePreview);
+  });
+
+  /* ========== 深色模式 ========== */
+  document.getElementById('btnTheme').addEventListener('click', function () {
+    document.body.classList.toggle('dark');
+  });
+
+  /* ========== 互动图片跟随主题 ========== */
+  function updateActionsImage() {
+    var isDark = document.body.classList.contains('dark');
+    document.querySelectorAll('.tweet-actions-img').forEach(function (img) {
+      var l = img.getAttribute('data-light-src');
+      var d = img.getAttribute('data-dark-src');
+      img.src = isDark ? (d || l) : l;
+    });
+  }
+
+  updateActionsImage();
+  new MutationObserver(function () { updateActionsImage(); })
+    .observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+
+/* ========== 预览模式切换 ========== */
+  var btnEnter = document.getElementById('btnEnterPreview');
+  var btnBack  = document.getElementById('btnBackEdit');
+  var tweetPage = document.getElementById('tweetPage');
+  var fadeTimer = null;
+
+  // 基准宽度：推文页面的设计宽度
+  var BASE_WIDTH = 430;
+
+  function applyScale() {
+    var screenW = window.innerWidth;
+    var screenH = window.innerHeight;
+
+    if (screenW >= BASE_WIDTH) {
+      // 屏幕够宽，不缩放
+      tweetPage.style.width = BASE_WIDTH + 'px';
+      tweetPage.style.height = screenH + 'px';
+      tweetPage.style.transform = 'none';
+      tweetPage.style.transformOrigin = 'top left';
+      tweetPage.style.position = 'fixed';
+      tweetPage.style.top = '0';
+      tweetPage.style.left = ((screenW - BASE_WIDTH) / 2) + 'px';
+    } else {
+      // 屏幕比设计窄，等比缩放
+      var scale = screenW / BASE_WIDTH;
+      tweetPage.style.width = BASE_WIDTH + 'px';
+      tweetPage.style.height = (screenH / scale) + 'px';
+      tweetPage.style.transform = 'scale(' + scale + ')';
+      tweetPage.style.transformOrigin = 'top left';
+      tweetPage.style.position = 'fixed';
+      tweetPage.style.top = '0';
+      tweetPage.style.left = '0';
+    }
+  }
+
+  btnEnter.addEventListener('click', function () {
+    updatePreview();
+    document.body.classList.add('preview-mode');
+    window.scrollTo(0, 0);
+
+    applyScale();
+
+    btnBack.classList.remove('fade-out');
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(function () {
+      btnBack.classList.add('fade-out');
+    }, 3000);
+  });
+
+  // 窗口变化时重新计算
+  window.addEventListener('resize', function () {
+    if (document.body.classList.contains('preview-mode')) {
+      applyScale();
+    }
+  });
+
+  // 预览模式点击屏幕 → 显示返回按钮
+  tweetPage.addEventListener('click', function () {
+    btnBack.classList.remove('fade-out');
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(function () {
+      btnBack.classList.add('fade-out');
+    }, 3000);
+  });
+
+  // 点击返回按钮 → 回到编辑模式
+  btnBack.addEventListener('click', function (e) {
+    e.stopPropagation();
+    document.body.classList.remove('preview-mode');
+    // 清除预览模式下的内联样式
+    tweetPage.style.width = '';
+    tweetPage.style.height = '';
+    tweetPage.style.transform = '';
+    tweetPage.style.transformOrigin = '';
+    tweetPage.style.position = '';
+    tweetPage.style.top = '';
+    tweetPage.style.left = '';
+    clearTimeout(fadeTimer);
+  });
+
+  /* ========== 初始渲染 ========== */
+  updatePreview();
+
+})();
+</script>
+
+</body>
+</html>
