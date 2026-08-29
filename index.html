@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>美化编辑器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%}
+
+:root{
+  --page-bg:#fffffe;--card-bg:#fffffe;
+  --text-color:#000;--text-body:#1c1c1e;--text-secondary:#536471;
+  --follow-bg:#000;--follow-text:#fff;
+  --editor-bg:#f5f5f5;--editor-border:#e0e0e0;
+  --editor-accent:#1d9bf0;--editor-card:#fff;
+}
+body{
+  background:var(--editor-bg);color:var(--text-color);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  transition:background-color .3s,color .3s;
+}
+body.dark{
+  --page-bg:#000;--card-bg:#000;
+  --text-color:#D7D7D7;--text-body:#D7D7D7;--text-secondary:#73787D;
+  --follow-bg:#fff;--follow-text:#000;
+  --editor-bg:#0a0a0a;--editor-border:#2a2a2a;--editor-card:#161616;
+}
+
+.editor-panel{
+  width:100%;min-height:100vh;padding:20px 16px 100px;
+  display:flex;flex-direction:column;gap:14px;background:var(--editor-bg);
+}
+body.preview-mode .editor-panel{display:none}
+
+.editor-header{display:flex;align-items:center;justify-content:space-between;padding:4px 0}
+.editor-header h2{font-size:20px;font-weight:700;color:var(--text-color)}
+
+.editor-section{
+  background:var(--editor-card);border:1px solid var(--editor-border);
+  border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;
+}
+.editor-section-title{
+  font-size:12px;font-weight:700;color:var(--text-secondary);
+  text-transform:uppercase;letter-spacing:.5px;
+}
+.editor-row{display:flex;flex-direction:column;gap:4px}
+.editor-row label{font-size:13px;font-weight:600;color:var(--text-color)}
+.editor-row input[type="text"],
+.editor-row input[type="number"],
+.editor-row input[type="url"],
+.editor-row select{
+  width:100%;padding:10px 12px;border:1px solid var(--editor-border);
+  border-radius:10px;background:var(--editor-bg);color:var(--text-color);
+  font-size:15px;font-family:inherit;outline:none;transition:border-color .2s;
+}
+.editor-row input:focus,.editor-row select:focus{border-color:var(--editor-accent)}
+.editor-row input[readonly]{opacity:.5}
+
+.editor-inline{display:flex;gap:10px;align-items:flex-end}
+.editor-inline .editor-row{flex:1}
+
+.editor-toggle{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.editor-toggle label{font-size:13px;font-weight:600;color:var(--text-color)}
+.toggle-switch{position:relative;width:44px;height:26px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{
+  position:absolute;inset:0;background:#ccc;border-radius:26px;cursor:pointer;transition:background .3s;
+}
+.toggle-slider::before{
+  content:"";position:absolute;width:20px;height:20px;left:3px;bottom:3px;
+  background:#fff;border-radius:50%;transition:transform .3s;
+}
+.toggle-switch input:checked+.toggle-slider{background:var(--editor-accent)}
+.toggle-switch input:checked+.toggle-slider::before{transform:translateX(18px)}
+
+.template-bar{display:flex;gap:8px;overflow-x:auto;padding:2px 0;-webkit-overflow-scrolling:touch}
+.template-bar::-webkit-scrollbar{display:none}
+.template-tab{
+  padding:10px 20px;border:1.5px solid var(--editor-border);border-radius:12px;
+  background:var(--editor-card);color:var(--text-color);
+  font-size:14px;font-weight:600;font-family:inherit;white-space:nowrap;
+  cursor:pointer;transition:all .2s;flex-shrink:0;
+}
+.template-tab.active{background:var(--text-color);color:var(--page-bg);border-color:var(--text-color)}
+.template-tab:disabled{opacity:.35;cursor:not-allowed}
+
+.char-bar{display:flex;gap:8px;align-items:center}
+.char-bar select{
+  flex:1;padding:10px 12px;border:1px solid var(--editor-border);border-radius:10px;
+  background:var(--editor-bg);color:var(--text-color);font-size:14px;font-family:inherit;outline:none;
+}
+.char-btn{
+  padding:10px 14px;border:1px solid var(--editor-border);border-radius:10px;
+  background:var(--editor-card);color:var(--text-color);
+  font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;
+  transition:all .15s;
+}
+.char-btn:active{transform:scale(.95)}
+.char-btn-danger{color:#ef4444}
+body.dark .char-btn-danger{color:#f87171}
+
+.avatar-input-row{display:flex;gap:8px;align-items:center}
+.avatar-input-row input[type="url"]{flex:1;min-width:0}
+.avatar-upload-label{
+  padding:10px 14px;border:1px solid var(--editor-border);border-radius:10px;
+  background:var(--editor-card);color:var(--editor-accent);
+  font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:all .15s;display:flex;align-items:center;gap:4px;
+}
+.avatar-upload-label:active{transform:scale(.95)}
+.avatar-thumb{
+  width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;
+  border:2px solid var(--editor-border);background:var(--editor-bg);
+  display:none;align-items:center;justify-content:center;
+}
+.avatar-thumb.has-img{display:flex}
+.avatar-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
+.rich-toolbar{
+  display:flex;align-items:center;gap:2px;padding:4px;
+  background:var(--editor-bg);border-radius:10px;flex-wrap:wrap;
+}
+.tool-btn{
+  width:36px;height:34px;border:none;border-radius:8px;background:transparent;
+  color:var(--text-color);font-size:15px;font-family:inherit;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0;
+}
+.tool-btn:active{background:var(--editor-border)}
+.tool-sep{width:1px;height:20px;background:var(--editor-border);margin:0 2px;flex-shrink:0}
+
+.hl-bar{
+  display:flex;align-items:center;gap:6px;padding:6px 8px;
+  background:var(--editor-bg);border-radius:10px;flex-wrap:wrap;
+}
+.hl-label{font-size:12px;font-weight:600;color:var(--text-secondary);white-space:nowrap;margin-right:2px}
+.hl-dot{
+  width:26px;height:26px;border:2.5px solid transparent;border-radius:50%;
+  cursor:pointer;transition:transform .15s,border-color .15s;flex-shrink:0;
+}
+.hl-dot:active{transform:scale(.88)}
+.hl-dot-clear{
+  background:var(--editor-card)!important;border:1.5px solid var(--editor-border)!important;
+  font-size:11px;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;
+}
+
+.rich-editor{
+  position:relative;min-height:140px;max-height:400px;padding:12px;
+  border:1px solid var(--editor-border);border-radius:10px;
+  background:var(--editor-bg);color:var(--text-color);
+  font-size:15px;font-family:inherit;line-height:1.6;outline:none;
+  overflow-y:auto;word-wrap:break-word;overflow-wrap:anywhere;transition:border-color .2s;
+}
+.rich-editor:focus{border-color:var(--editor-accent)}
+.rich-editor.is-empty::before{
+  content:attr(data-placeholder);color:var(--text-secondary);pointer-events:none;
+}
+.rich-editor mark{border-radius:2px;padding:1px 0;color:inherit}
+.rich-editor b,.rich-editor strong{font-weight:700}
+.rich-editor i,.rich-editor em{font-style:italic}
+.rich-editor u{text-decoration:underline}
+.rich-editor s,.rich-editor strike{text-decoration:line-through}
+.rich-editor span[style*="background-color"]{border-radius:2px;padding:1px 0}
+body.dark .rich-editor span[style*="background-color"]{color:#1c1c1e}
+
+.action-btn{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:700;
+  font-family:inherit;cursor:pointer;transition:opacity .2s,transform .1s;
+}
+.action-btn:active{transform:scale(.97)}
+.btn-theme{
+  background:var(--text-color);color:var(--page-bg);
+  padding:10px 16px;font-size:14px;width:auto;border-radius:10px;
+}
+
+.floating-preview-btn{
+  position:fixed;z-index:9999;bottom:24px;left:50%;transform:translateX(-50%);
+  padding:14px 32px;border:none;border-radius:50px;
+  background:var(--editor-accent);color:#fff;font-size:16px;font-weight:700;
+  font-family:inherit;cursor:pointer;
+  box-shadow:0 4px 20px rgba(29,155,240,.4);
+  transition:opacity .2s,transform .1s;
+}
+.floating-preview-btn:active{transform:translateX(-50%) scale(.95)}
+body.preview-mode .floating-preview-btn{display:none}
+
+.toast{
+  position:fixed;z-index:99999;bottom:80px;left:50%;
+  transform:translateX(-50%) translateY(20px);
+  padding:10px 24px;border-radius:50px;background:rgba(0,0,0,.8);color:#fff;
+  font-size:14px;font-weight:600;font-family:inherit;
+  pointer-events:none;opacity:0;transition:opacity .3s,transform .3s;white-space:nowrap;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+#tweetPage{display:none}
+body.preview-mode #tweetPage{
+  display:flex;flex-direction:column;background:var(--page-bg);overflow:hidden;z-index:10000;
+}
+
+.preview-actions{display:none}
+body.preview-mode .preview-actions{
+  display:flex;position:fixed;z-index:10001;bottom:90px;left:50%;transform:translateX(-50%);
+  gap:10px;opacity:1;transition:opacity .3s;
+}
+body.preview-mode .preview-actions.fade-out{opacity:0;pointer-events:none}
+.preview-action-btn{
+  padding:10px 22px;border:none;border-radius:50px;
+  background:rgba(0,0,0,.65);color:#fff;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
+  white-space:nowrap;transition:transform .1s;
+}
+.preview-action-btn:active{transform:scale(.95)}
+.preview-action-btn.btn-save{background:rgba(29,155,240,.85)}
+
+.save-modal{
+  display:none;position:fixed;z-index:99999;inset:0;
+  align-items:center;justify-content:center;flex-direction:column;
+}
+.save-modal.show{display:flex}
+.save-modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.75)}
+.save-modal-body{
+  position:relative;z-index:1;max-width:90vw;max-height:88vh;
+  display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px;
+}
+.save-modal-hint{color:#fff;font-size:14px;font-weight:600;text-align:center}
+.save-modal-img{
+  max-width:100%;max-height:68vh;border-radius:10px;
+  box-shadow:0 4px 30px rgba(0,0,0,.5);display:block;
+}
+.save-modal-btns{display:flex;gap:10px}
+.save-modal-btn{
+  padding:10px 28px;border:none;border-radius:50px;
+  font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
+}
+.save-modal-btn-download{background:var(--editor-accent);color:#fff}
+.save-modal-btn-close{background:rgba(255,255,255,.2);color:#fff;backdrop-filter:blur(10px)}
+
+.top-nav-wrapper{z-index:10;width:100%;flex-shrink:0;padding:14px 30px 0;background:var(--page-bg)}
+.top-nav-bar{position:relative;width:100%;height:50px;overflow:hidden}
+.top-nav-img{width:108%;max-width:none;height:auto;display:block;margin-left:-4%;pointer-events:none}
+.top-nav-title{
+  position:absolute;z-index:5;top:60%;left:50%;transform:translate(-50%,-50%);
+  color:var(--text-color);font-size:16.5px;font-weight:550;line-height:1;
+  letter-spacing:.5px;white-space:nowrap;pointer-events:none;
+}
+.top-nav-grok{
+  position:absolute;z-index:5;top:62%;right:10%;transform:translateY(-50%);
+  width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none;
+}
+.top-nav-grok svg{width:100%;height:100%;display:block;fill:var(--text-color)}
+
+.scroll-content{
+  flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  padding:10px 30px 30px;-webkit-overflow-scrolling:touch;
+}
+.tweet-card{position:relative;z-index:1;width:100%;margin:14px 0;color:var(--text-color);background:var(--card-bg);overflow:visible}
+.tweet-header{position:relative;z-index:2;display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.tweet-avatar{
+  position:relative;z-index:2;width:45px;height:45px;flex-shrink:0;
+  overflow:hidden;border-radius:50%;background:#e5e5ea;
+}
+.tweet-avatar img{width:100%;height:100%;display:block;object-fit:cover;pointer-events:none}
+.tweet-user-info{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.tweet-display-name{
+  display:flex;align-items:center;gap:3px;min-width:0;
+  color:var(--text-color);font-size:15px;font-weight:550;line-height:1.3;overflow-wrap:anywhere;
+}
+.tweet-verified{width:14px;height:14px;flex-shrink:0;display:inline-flex}
+.tweet-verified svg{width:100%;height:100%;display:block}
+.tweet-handle{color:var(--text-secondary);font-size:13.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.tweet-header-action{flex-shrink:0;margin-top:-15px;margin-right:-5px}
+.tweet-header-action-img{width:62px;height:auto;display:block;pointer-events:none}
+
+.tweet-translate-hint{
+  display:none;align-items:center;gap:4px;margin-top:1px;margin-bottom:3px;
+  color:var(--text-secondary);font-size:12px;font-weight:590;line-height:1.3;white-space:nowrap;
+}
+.tweet-translate-hint.visible{display:flex}
+.tweet-translate-hint-icon{
+  width:13px;height:13px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+}
+.tweet-translate-hint-icon svg{width:100%;height:100%;display:block;fill:var(--text-secondary)}
+
+.tweet-body{
+  position:relative;z-index:2;width:100%;margin-bottom:5px;
+  color:var(--text-body);font-size:16px;font-weight:580;line-height:1.55;
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
+.tweet-body mark{background:var(--hl-color,#fef08a);color:inherit;border-radius:2px;padding:1px 0;-webkit-text-fill-color:currentColor}
+.tweet-body strong,.tweet-body b{font-weight:bolder}
+.tweet-body em,.tweet-body i{font-style:italic}
+.tweet-body u{text-decoration:underline}
+.tweet-body s,.tweet-body strike,.tweet-body del{text-decoration:line-through}
+.tweet-body span[style*="background-color"]{border-radius:2px;padding:1px 0}
+body.dark .tweet-body span[style*="background-color"]{color:#1c1c1e}
+.tweet-body.indented{text-indent:2em}
+.tweet-body.indented div,.tweet-body.indented p{text-indent:2em}
+
+.tweet-rate-translation{
+  display:none;align-items:center;gap:1px;margin-top:0;margin-bottom:15px;
+  color:var(--text-secondary);font-size:12px;font-weight:590;line-height:1.3;white-space:nowrap;
+}
+.tweet-rate-translation.visible{display:flex}
+.tweet-rate-icon{width:55px;height:auto;display:inline-block;vertical-align:middle;pointer-events:none}
+
+.tweet-meta{
+  position:relative;z-index:2;width:100%;color:var(--text-secondary);
+  font-size:13px;font-weight:590;line-height:1.4;overflow-wrap:anywhere;
+}
+body.dark .tweet-meta{color:var(--text-secondary)}
+.tweet-meta-views{color:var(--text-color);font-weight:590}
+
+.tweet-actions-bar{position:relative;z-index:999;width:100%;background:transparent;overflow:visible}
+.tweet-actions-img{
+  position:relative;z-index:1000;width:102%;max-width:none;height:auto;
+  display:block;margin-top:-18px;margin-left:-1%;pointer-events:none;
+}
+.tweet-actions-numbers{position:absolute;z-index:1001;inset:0;pointer-events:none}
+.action-count{
+  position:absolute;color:var(--text-secondary);font-size:13px;font-weight:600;
+  line-height:1;white-space:nowrap;pointer-events:none;
+}
+.action-count-reply{top:56%;left:8%}
+.action-count-retweet{top:56%;left:31.5%}
+.action-count-like{top:56%;left:54.5%}
+.action-count-bookmark{top:56%;left:78%}
+
+.bottom-tab-bar{z-index:10;width:100%;flex-shrink:0;padding:0 30px 2px;background:var(--page-bg)}
+.bottom-tab-img{width:108%;max-width:none;height:auto;display:block;margin-left:-4%;pointer-events:none}
+
+body.dark .top-nav-img,
+body.dark .tweet-header-action-img{filter:invert(1)}
+
+@media(max-width:430px){
+  .top-nav-wrapper{padding:10px 20px 0}
+  .scroll-content{padding:10px 20px 24px}
+  .bottom-tab-bar{padding:0 20px 2px}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== 编辑面板 ==================== -->
+<div class="editor-panel">
+
+  <div class="editor-header">
+    <h2>✦ 美化编辑器</h2>
+    <button class="action-btn btn-theme" id="btnTheme">🪽</button>
+  </div>
+
+  <div class="template-bar">
+    <button class="template-tab active" data-tpl="x">𝕏 推文</button>
+    <button class="template-tab" data-tpl="notes" disabled>📝 备忘录</button>
+    <button class="template-tab" data-tpl="more" disabled>✦ 更多</button>
+  </div>
+
+  <!-- 角色 -->
+  <div class="editor-section">
+    <div class="editor-section-title">角色</div>
+    <div class="char-bar">
+      <select id="charSelect"><option value="__new__">＋ 新角色</option></select>
+      <button class="char-btn" id="btnSaveChar">保存</button>
+      <button class="char-btn char-btn-danger" id="btnDelChar">删除</button>
+    </div>
+    <div class="editor-row">
+      <label>头像</label>
+      <div class="avatar-input-row">
+        <div class="avatar-thumb" id="avatarThumb"></div>
+        <input type="url" id="editAvatar" placeholder="粘贴链接 或 点右侧上传">
+        <label class="avatar-upload-label">
+          📷
+          <input type="file" accept="image/*" id="editAvatarFile" hidden>
+        </label>
+      </div>
+    </div>
+    <div class="editor-row">
+      <label>用户名</label>
+      <input type="text" id="editName" placeholder="显示名称">
+    </div>
+    <div class="editor-row">
+      <label>用户 ID</label>
+      <input type="text" id="editHandle" placeholder="@username">
+    </div>
+    <div class="editor-toggle">
+      <label>蓝V认证</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editVerified">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- 翻译 -->
+  <div class="editor-section template-x">
+    <div class="editor-section-title">翻译提示</div>
+    <div class="editor-toggle">
+      <label>显示翻译提示</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editShowTranslate">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="editor-row">
+      <label>翻译源语言</label>
+      <input type="text" id="editTransLang" placeholder="如：英语、日语、韩语">
+    </div>
+    <div class="editor-toggle">
+      <label>显示"评价此翻译"</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editShowRate">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- 正文 -->
+  <div class="editor-section">
+    <div class="editor-section-title">正文内容</div>
+    <div class="rich-toolbar">
+      <button class="tool-btn" data-cmd="bold" title="粗体"><b>B</b></button>
+      <button class="tool-btn" data-cmd="italic" title="斜体"><i>I</i></button>
+      <button class="tool-btn" data-cmd="underline" title="下划线"><u>U</u></button>
+      <button class="tool-btn" data-cmd="strikeThrough" title="删除线"><s>S</s></button>
+      <span class="tool-sep"></span>
+      <button class="tool-btn" data-cmd="removeFormat" title="清除全部格式">✕</button>
+    </div>
+    <div class="hl-bar">
+      <span class="hl-label">马克笔</span>
+      <button class="hl-dot" data-color="#fef08a" style="background:#fef08a" title="黄"></button>
+      <button class="hl-dot" data-color="#bbf7d0" style="background:#bbf7d0" title="绿"></button>
+      <button class="hl-dot" data-color="#bfdbfe" style="background:#bfdbfe" title="蓝"></button>
+      <button class="hl-dot" data-color="#fecaca" style="background:#fecaca" title="红"></button>
+      <button class="hl-dot" data-color="#e9d5ff" style="background:#e9d5ff" title="紫"></button>
+      <button class="hl-dot" data-color="#fed7aa" style="background:#fed7aa" title="橙"></button>
+      <button class="hl-dot" data-color="#fce7f3" style="background:#fce7f3" title="粉"></button>
+      <button class="hl-dot hl-dot-clear" data-color="" title="取消高亮">✕</button>
+    </div>
+    <p style="font-size:11px;color:var(--text-secondary);line-height:1.5;padding:0 2px;">
+      在上方编辑框中<b>选中文字</b>，再点击工具栏按钮或马克笔颜色即可
+    </p>
+    <div class="rich-editor is-empty" id="richEditor" contenteditable="true" data-placeholder="在这里输入正文……"></div>
+    <div class="editor-toggle">
+      <label>首行缩进（每段前空两格）</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editIndent">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="editor-inline">
+      <div class="editor-row">
+        <label>字号</label>
+        <input type="number" id="editFontSize" value="16" min="12" max="24" step="0.5">
+      </div>
+      <div class="editor-row">
+        <label>行高</label>
+        <input type="number" id="editLineHeight" value="1.55" min="1" max="3" step="0.05">
+      </div>
+      <div class="editor-row">
+        <label>字重</label>
+        <input type="number" id="editFontWeight" value="580" min="300" max="900" step="10">
+      </div>
+    </div>
+  </div>
+
+  <!-- 互动 -->
+  <div class="editor-section template-x">
+    <div class="editor-section-title">互动数据</div>
+    <div class="editor-inline">
+      <div class="editor-row"><label>回复</label><input type="text" id="editReply" placeholder="0"></div>
+      <div class="editor-row"><label>转发</label><input type="text" id="editRetweet" placeholder="0"></div>
+    </div>
+    <div class="editor-inline">
+      <div class="editor-row"><label>点赞</label><input type="text" id="editLike" placeholder="0"></div>
+      <div class="editor-row"><label>书签</label><input type="text" id="editBookmark" placeholder="0"></div>
+    </div>
+  </div>
+
+  <!-- 时间 -->
+  <div class="editor-section template-x">
+    <div class="editor-section-title">时间与浏览</div>
+    <div class="editor-toggle">
+      <label>自动同步当前时间</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editTimeSync" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="editor-inline">
+      <div class="editor-row"><label>时间</label><input type="text" id="editTime" placeholder="00:00" readonly></div>
+      <div class="editor-row"><label>日期</label><input type="text" id="editDate" placeholder="2026/1/1" readonly></div>
+    </div>
+    <div class="editor-row">
+      <label>浏览量</label>
+      <input type="text" id="editViews" placeholder="0">
+    </div>
+  </div>
+
+  <!-- 页面设置 -->
+  <div class="editor-section">
+    <div class="editor-section-title">页面设置</div>
+    <div class="editor-row">
+      <label>页面高度（px）</label>
+      <input type="number" id="editPageHeight" value="932" min="500" max="3000" step="10">
+    </div>
+    <p style="font-size:11px;color:var(--text-secondary);line-height:1.5;padding:0 2px;">
+      数值越大截图越长。默认 932 ≈ iPhone 尺寸。预览时会自动缩放到屏幕内
+    </p>
+  </div>
+</div>
+
+<!-- 浮动预览 -->
+<button class="floating-preview-btn" id="btnEnterPreview">预览</button>
+
+<!-- ==================== 推文预览页 ==================== -->
+<div id="tweetPage">
+  <div class="top-nav-wrapper">
+    <div class="top-nav-bar">
+      <img class="top-nav-img" src="https://s3.bmp.ovh/2026/08/27/WOBCCCaG.jpg" alt="">
+      <span class="top-nav-title">帖子</span>
+      <span class="top-nav-grok">
+        <svg viewBox="0 0 1024 1024"><path d="M395.479 633.828L735.91 381.105C752.599 368.715 776.454 373.548 784.406 392.792C826.26 494.285 807.561 616.253 724.288 699.996C641.016 783.739 525.151 802.104 419.247 760.277L303.556 814.143C469.49 928.202 670.987 899.995 796.901 773.282C896.776 672.843 927.708 535.937 898.785 412.476L899.047 412.739C857.105 231.37 909.358 158.874 1016.4 10.6326C1018.93 7.11771 1021.47 3.60279 1024 0L883.144 141.651V141.212L395.392 633.916"/><path d="M325.226 695.251C206.128 580.84 226.662 403.776 328.285 301.668C403.431 226.097 526.549 195.254 634.026 240.596L749.454 186.994C728.657 171.88 702.007 155.623 671.424 144.2C533.19 86.9942 367.693 115.465 255.323 228.382C147.234 337.081 113.244 504.215 171.613 646.833C215.216 753.423 143.739 828.818 71.7385 904.916C46.2237 931.893 20.6216 958.87 0 987.429L325.139 695.339"/></svg>
+      </span>
+    </div>
+  </div>
+
+  <div class="scroll-content">
+    <article class="tweet-card">
+      <div class="tweet-header">
+        <div class="tweet-avatar">
+          <img id="previewAvatar" src="about:blank" alt="">
+        </div>
+        <div class="tweet-user-info">
+          <div class="tweet-display-name">
+            <span id="previewName"></span>
+            <span class="tweet-verified" id="previewVerified" style="display:none">
+              <svg viewBox="0 0 22 22"><path fill="#1D9BF0" d="M20.396 11c-.018-.646-.215-1.275-.57-1.816-.354-.54-.852-.972-1.438-1.246.223-.607.27-1.264.14-1.897-.131-.634-.437-1.218-.882-1.687-.47-.445-1.053-.75-1.687-.882-.633-.13-1.29-.083-1.897.14-.273-.587-.704-1.086-1.245-1.44S11.647 1.62 11 1.604c-.646.017-1.273.213-1.813.568s-.969.855-1.24 1.44c-.608-.223-1.267-.272-1.902-.14-.635.13-1.22.436-1.69.882-.445.47-.749 1.055-.878 1.69-.13.636-.08 1.297.144 1.907-.587.274-1.087.705-1.443 1.245-.356.54-.555 1.17-.574 1.817.02.647.218 1.276.574 1.817.356.54.856.972 1.443 1.245-.224.61-.273 1.271-.144 1.907.13.635.433 1.22.878 1.69.47.446 1.055.752 1.69.882.635.132 1.294.083 1.902-.14.272.587.702 1.087 1.24 1.44s1.167.551 1.813.568c.647-.017 1.277-.213 1.817-.568s.972-.854 1.245-1.44c.604.223 1.262.272 1.894.14.634-.13 1.22-.436 1.69-.882.445-.47.749-1.055.878-1.69.13-.636.08-1.297-.144-1.908.588-.273 1.088-.704 1.444-1.244.354-.543.551-1.174.569-1.82ZM9.662 14.85l-3.429-3.428 1.293-1.302 2.072 2.072 4.4-4.794 1.347 1.246-5.683 6.206Z"/></svg>
+            </span>
+          </div>
+          <div class="tweet-handle" id="previewHandle"></div>
+        </div>
+        <div class="tweet-header-action">
+          <img class="tweet-header-action-img" src="https://s3.bmp.ovh/2026/08/27/GYQFLxl3.jpg" alt="">
+        </div>
+      </div>
+
+      <div class="tweet-translate-hint" id="previewTranslateHint">
+        <span class="tweet-translate-hint-icon">
+          <svg viewBox="0 0 1024 1024"><path d="M395.479 633.828L735.91 381.105C752.599 368.715 776.454 373.548 784.406 392.792C826.26 494.285 807.561 616.253 724.288 699.996C641.016 783.739 525.151 802.104 419.247 760.277L303.556 814.143C469.49 928.202 670.987 899.995 796.901 773.282C896.776 672.843 927.708 535.937 898.785 412.476L899.047 412.739C857.105 231.37 909.358 158.874 1016.4 10.6326C1018.93 7.11771 1021.47 3.60279 1024 0L883.144 141.651V141.212L395.392 633.916"/><path d="M325.226 695.251C206.128 580.84 226.662 403.776 328.285 301.668C403.431 226.097 526.549 195.254 634.026 240.596L749.454 186.994C728.657 171.88 702.007 155.623 671.424 144.2C533.19 86.9942 367.693 115.465 255.323 228.382C147.234 337.081 113.244 504.215 171.613 646.833C215.216 753.423 143.739 828.818 71.7385 904.916C46.2237 931.893 20.6216 958.87 0 987.429L325.139 695.339"/></svg>
+        </span>
+        <span id="previewTransLang"></span>
+      </div>
+
+      <div class="tweet-body" id="previewBody"></div>
+
+      <div class="tweet-rate-translation" id="previewRate">
+        评价此翻译：
+        <img class="tweet-rate-icon theme-img"
+          data-light-src="https://s3.bmp.ovh/2026/08/27/kSa6IGly.jpg"
+          data-dark-src="https://s3.bmp.ovh/2026/08/28/OuwPQhzy.jpg"
+          src="https://s3.bmp.ovh/2026/08/27/kSa6IGly.jpg" alt="">
+      </div>
+
+      <div class="tweet-meta">
+        <span id="previewTime"></span> · <span id="previewDate"></span> ·
+        <span class="tweet-meta-views" id="previewViews"></span> 次查看
+      </div>
+
+      <div class="tweet-actions-bar">
+        <img class="tweet-actions-img"
+          data-light-src="https://s3.bmp.ovh/2026/07/01/w6x9UB9d.png"
+          data-dark-src="https://s3.bmp.ovh/2026/07/01/u5UTX6B5.png"
+          src="https://s3.bmp.ovh/2026/07/01/w6x9UB9d.png" alt="">
+        <div class="tweet-actions-numbers">
+          <span class="action-count action-count-reply" id="previewReply"></span>
+          <span class="action-count action-count-retweet" id="previewRetweet"></span>
+          <span class="action-count action-count-like" id="previewLike"></span>
+          <span class="action-count action-count-bookmark" id="previewBookmark"></span>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="bottom-tab-bar">
+    <img class="bottom-tab-img theme-img"
+      data-light-src="https://s3.bmp.ovh/2026/08/27/YIPLZ5m9.jpg"
+      data-dark-src="https://s3.bmp.ovh/2026/08/28/IyfydGEU.jpg"
+      src="https://s3.bmp.ovh/2026/08/27/YIPLZ5m9.jpg" alt="">
+  </div>
+</div>
+
+<!-- 预览底部按钮 -->
+<div class="preview-actions" id="previewActions">
+  <button class="preview-action-btn" id="btnBackEdit">← 返回</button>
+  <button class="preview-action-btn btn-save" id="btnSaveImg">💾 保存图片</button>
+</div>
+
+<!-- 保存图片弹窗 -->
+<div class="save-modal" id="saveModal">
+  <div class="save-modal-overlay" id="saveModalOverlay"></div>
+  <div class="save-modal-body">
+    <p class="save-modal-hint">长按图片保存到相册 📲</p>
+    <img class="save-modal-img" id="saveModalImg" src="" alt="">
+    <div class="save-modal-btns">
+      <button class="save-modal-btn save-modal-btn-download" id="saveModalDL">下载</button>
+      <button class="save-modal-btn save-modal-btn-close" id="saveModalClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script>
+(function(){
+
+var STORE_KEY='beautyEditor';
+function loadStore(){try{return JSON.parse(localStorage.getItem(STORE_KEY))||{}}catch(e){return{}}}
+function saveStore(d){localStorage.setItem(STORE_KEY,JSON.stringify(d))}
+function genId(){return 'c_'+Date.now()+'_'+Math.random().toString(36).substr(2,5)}
+
+var $=function(id){return document.getElementById(id)};
+
+var editAvatar=$('editAvatar'),editAvatarFile=$('editAvatarFile'),
+    avatarThumb=$('avatarThumb'),
+    editName=$('editName'),editHandle=$('editHandle'),
+    editVerified=$('editVerified'),editShowTranslate=$('editShowTranslate'),
+    editTransLang=$('editTransLang'),editShowRate=$('editShowRate'),
+    richEditor=$('richEditor'),editIndent=$('editIndent'),
+    editFontSize=$('editFontSize'),editLineHeight=$('editLineHeight'),
+    editFontWeight=$('editFontWeight'),
+    editReply=$('editReply'),editRetweet=$('editRetweet'),
+    editLike=$('editLike'),editBookmark=$('editBookmark'),
+    editTimeSync=$('editTimeSync'),editTime=$('editTime'),editDate=$('editDate'),
+    editViews=$('editViews'),editPageHeight=$('editPageHeight'),
+    charSelect=$('charSelect');
+
+var previewAvatar=$('previewAvatar'),previewName=$('previewName'),
+    previewHandle=$('previewHandle'),previewVerified=$('previewVerified'),
+    previewTranslateHint=$('previewTranslateHint'),previewTransLang=$('previewTransLang'),
+    previewRate=$('previewRate'),previewBody=$('previewBody'),
+    previewReply=$('previewReply'),previewRetweet=$('previewRetweet'),
+    previewLike=$('previewLike'),previewBookmark=$('previewBookmark'),
+    previewTime=$('previewTime'),previewDate=$('previewDate'),
+    previewViews=$('previewViews');
+
+var tweetPage=$('tweetPage'),btnEnter=$('btnEnterPreview'),
+    btnBack=$('btnBackEdit'),btnSaveImg=$('btnSaveImg'),
+    previewActions=$('previewActions'),toastEl=$('toast');
+
+var saveModal=$('saveModal'),saveModalImg=$('saveModalImg');
+
+var toastTimer=null;
+function showToast(msg){
+  toastEl.textContent=msg;toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){toastEl.classList.remove('show')},2200);
+}
+
+/* ==================== 图片预缓存 ==================== */
+var imgCache={};
+
+function collectUrls(){
+  var urls=[];
+  tweetPage.querySelectorAll('img').forEach(function(img){
+    ['src','data-light-src','data-dark-src'].forEach(function(attr){
+      var u=img.getAttribute(attr);
+      if(u&&u!=='about:blank'&&!u.startsWith('data:')&&!u.startsWith('blob:'))
+        if(urls.indexOf(u)<0) urls.push(u);
+    });
+  });
+  return urls;
+}
+
+function cacheImg(url,pi,cb){
+  if(imgCache[url]) return cb(true);
+  if(pi>=3) return cb(false);
+  var proxied;
+  if(pi===0) proxied='https://wsrv.nl/?url='+encodeURIComponent(url);
+  else if(pi===1) proxied='https://corsproxy.io/?'+encodeURIComponent(url);
+  else proxied='https://api.allorigins.win/raw?url='+encodeURIComponent(url);
+  var img=new Image();
+  img.crossOrigin='anonymous';
+  img.onload=function(){
+    try{
+      var c=document.createElement('canvas');
+      c.width=img.naturalWidth;c.height=img.naturalHeight;
+      c.getContext('2d').drawImage(img,0,0);
+      imgCache[url]=c.toDataURL('image/png');
+      cb(true);
+    }catch(e){cacheImg(url,pi+1,cb)}
+  };
+  img.onerror=function(){cacheImg(url,pi+1,cb)};
+  img.src=proxied;
+}
+
+function startCaching(){
+  collectUrls().forEach(function(url){cacheImg(url,0,function(){})});
+}
+
+function ensureAllCached(cb){
+  var urls=collectUrls();
+  var pending=urls.filter(function(u){return !imgCache[u]});
+  if(pending.length===0) return cb();
+  var done=false,left=pending.length;
+  function finish(){if(done)return;done=true;cb()}
+  pending.forEach(function(url){
+    cacheImg(url,0,function(){left--;if(left<=0)finish()});
+  });
+  setTimeout(finish,10000);
+}
+
+function swapToCache(){
+  var arr=[];
+  tweetPage.querySelectorAll('img').forEach(function(img){
+    var src=img.src;
+    if(imgCache[src]){arr.push({el:img,orig:src});img.src=imgCache[src]}
+  });
+  return arr;
+}
+function swapBack(arr){arr.forEach(function(o){o.el.src=o.orig})}
+
+/* ==================== 头像上传 ==================== */
+function compressImage(file,maxSize,cb){
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var c=document.createElement('canvas');
+      var w=img.width,h=img.height;
+      if(w>maxSize||h>maxSize){
+        if(w>h){h=Math.round(h*maxSize/w);w=maxSize}
+        else{w=Math.round(w*maxSize/h);h=maxSize}
+      }
+      c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      cb(c.toDataURL('image/jpeg',0.85));
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+editAvatarFile.addEventListener('change',function(){
+  var file=this.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){showToast('请选择图片文件');return}
+  showToast('正在处理…');
+  compressImage(file,200,function(base64){
+    editAvatar.value=base64;
+    updateAvatarThumb();updatePreview();autoSaveDraft();
+    showToast('头像已上传 ✓');
+  });
+  this.value='';
+});
+
+editAvatar.addEventListener('input',function(){updateAvatarThumb()});
+
+function updateAvatarThumb(){
+  var src=editAvatar.value.trim();
+  if(src){
+    avatarThumb.innerHTML='<img src="'+src+'" alt="">';
+    avatarThumb.classList.add('has-img');
+  }else{
+    avatarThumb.innerHTML='';
+    avatarThumb.classList.remove('has-img');
+  }
+}
+
+/* ==================== 角色管理 ==================== */
+function getChars(){return loadStore().characters||[]}
+
+function populateCharSelect(){
+  while(charSelect.options.length>1) charSelect.remove(1);
+  getChars().forEach(function(c){
+    var o=document.createElement('option');
+    o.value=c.id;
+    o.textContent=c.name+(c.handle?' ('+c.handle+')':'');
+    charSelect.appendChild(o);
+  });
+}
+
+function loadChar(id){
+  var c=getChars().find(function(x){return x.id===id});
+  if(!c)return;
+  editAvatar.value=c.avatar||'';editName.value=c.name||'';
+  editHandle.value=c.handle||'';editVerified.checked=!!c.verified;
+  updateAvatarThumb();updatePreview();
+}
+
+charSelect.addEventListener('change',function(){
+  if(this.value==='__new__'){
+    editAvatar.value='';editName.value='';editHandle.value='';editVerified.checked=false;
+    updateAvatarThumb();
+  }else{loadChar(this.value)}
+  updatePreview();autoSaveDraft();
+});
+
+$('btnSaveChar').addEventListener('click',function(){
+  var name=editName.value.trim();
+  if(!name){showToast('请先输入用户名');return}
+  var id=charSelect.value==='__new__'?genId():charSelect.value;
+  var ch={id:id,name:editName.value,handle:editHandle.value,
+    avatar:editAvatar.value,verified:editVerified.checked,updatedAt:Date.now()};
+  var d=loadStore();if(!d.characters)d.characters=[];
+  var idx=d.characters.findIndex(function(x){return x.id===id});
+  if(idx>=0)d.characters[idx]=ch;else d.characters.push(ch);
+  d.lastCharId=id;saveStore(d);
+  populateCharSelect();charSelect.value=id;
+  showToast('角色已保存 ✓');
+});
+
+$('btnDelChar').addEventListener('click',function(){
+  if(charSelect.value==='__new__'){showToast('请先选择一个角色');return}
+  if(!confirm('确定删除此角色？'))return;
+  var d=loadStore();
+  d.characters=(d.characters||[]).filter(function(x){return x.id!==charSelect.value});
+  if(d.lastCharId===charSelect.value)d.lastCharId=null;
+  saveStore(d);populateCharSelect();charSelect.value='__new__';
+  editAvatar.value='';editName.value='';editHandle.value='';editVerified.checked=false;
+  updateAvatarThumb();updatePreview();autoSaveDraft();
+  showToast('角色已删除');
+});
+
+/* ==================== 时间同步 ==================== */
+var syncTimer=null;
+function getNow(){
+  var n=new Date();
+  return{
+    time:String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'),
+    date:n.getFullYear()+'/'+(n.getMonth()+1)+'/'+n.getDate()
+  };
+}
+function syncTime(){var t=getNow();editTime.value=t.time;editDate.value=t.date}
+function startSync(){syncTime();syncTimer=setInterval(syncTime,1000);editTime.readOnly=true;editDate.readOnly=true}
+function stopSync(){clearInterval(syncTimer);syncTimer=null;editTime.readOnly=false;editDate.readOnly=false}
+editTimeSync.addEventListener('change',function(){
+  if(this.checked)startSync();else stopSync();autoSaveDraft();
+});
+
+/* ==================== 富文本编辑 ==================== */
+function checkEditorEmpty(){
+  var html=richEditor.innerHTML;
+  var empty=!html||html==='<br>'||html==='<div><br></div>'||html.replace(/<[^>]*>/g,'').trim()==='';
+  richEditor.classList.toggle('is-empty',empty);
+}
+
+document.querySelectorAll('.tool-btn, .hl-dot').forEach(function(btn){
+  btn.addEventListener('mousedown',function(e){e.preventDefault()});
+});
+
+document.querySelectorAll('.tool-btn[data-cmd]').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.execCommand(btn.getAttribute('data-cmd'),false,null);
+    richEditor.focus();checkEditorEmpty();autoSaveDraft();
+  });
+});
+
+document.querySelectorAll('.hl-dot').forEach(function(dot){
+  dot.addEventListener('click',function(){
+    var color=dot.getAttribute('data-color');
+    if(!color){removeHighlight()}else{applyHighlight(color)}
+    richEditor.focus();checkEditorEmpty();autoSaveDraft();
+  });
+});
+
+function applyHighlight(color){
+  var sel=window.getSelection();
+  if(!sel.rangeCount||sel.isCollapsed){showToast('请先选中文字');return}
+  var range=sel.getRangeAt(0);
+  if(!richEditor.contains(range.commonAncestorContainer)){showToast('请在编辑框中选中文字');return}
+  document.execCommand('hiliteColor',false,color);
+}
+
+function removeHighlight(){
+  var sel=window.getSelection();if(!sel.rangeCount)return;
+  if(!sel.isCollapsed){
+    document.execCommand('hiliteColor',false,'transparent');cleanHighlightSpans();
+  }else{
+    var node=sel.anchorNode;
+    while(node&&node!==richEditor){
+      if(node.nodeType===1&&node.style&&node.style.backgroundColor&&
+         node.style.backgroundColor!=='transparent'&&
+         node.style.backgroundColor!=='rgba(0, 0, 0, 0)'){
+        var p=node.parentNode;
+        while(node.firstChild)p.insertBefore(node.firstChild,node);
+        p.removeChild(node);richEditor.normalize();break;
+      }
+      node=node.parentNode;
+    }
+  }
+}
+
+function cleanHighlightSpans(){
+  richEditor.querySelectorAll('span').forEach(function(s){
+    var bg=s.style.backgroundColor;
+    if(!bg||bg==='transparent'||bg==='rgba(0, 0, 0, 0)'){
+      var hasOther=false;
+      for(var i=0;i<s.style.length;i++){if(s.style[i]!=='background-color'){hasOther=true;break}}
+      if(!hasOther){var p=s.parentNode;while(s.firstChild)p.insertBefore(s.firstChild,s);p.removeChild(s)}
+      else{s.style.removeProperty('background-color')}
+    }
+  });
+  richEditor.normalize();
+}
+
+richEditor.addEventListener('input',function(){checkEditorEmpty();updatePreview();autoSaveDraft()});
+
+/* ==================== 预览更新 ==================== */
+function updatePreview(){
+  var av=editAvatar.value.trim();
+  if(av){previewAvatar.src=av;previewAvatar.style.display=''}
+  else{previewAvatar.src='about:blank';previewAvatar.style.display='none'}
+  previewName.textContent=editName.value||'';
+  var h=editHandle.value.trim();
+  if(h&&h.charAt(0)!=='@')h='@'+h;
+  previewHandle.textContent=h||'';
+  previewVerified.style.display=editVerified.checked?'':'none';
+  previewTranslateHint.classList.toggle('visible',editShowTranslate.checked);
+  previewTransLang.textContent='由 Grok 翻译自'+(editTransLang.value||'英语');
+  previewRate.classList.toggle('visible',editShowRate.checked);
+  var bodyHtml=richEditor.innerHTML;
+  if(bodyHtml==='<br>'||bodyHtml==='<div><br></div>')bodyHtml='';
+  previewBody.innerHTML=bodyHtml;
+  previewBody.style.fontSize=editFontSize.value+'px';
+  previewBody.style.lineHeight=editLineHeight.value;
+  previewBody.style.fontWeight=editFontWeight.value;
+  previewBody.classList.toggle('indented',editIndent.checked);
+  previewReply.textContent=editReply.value||'';
+  previewRetweet.textContent=editRetweet.value||'';
+  previewLike.textContent=editLike.value||'';
+  previewBookmark.textContent=editBookmark.value||'';
+  previewTime.textContent=editTime.value||'';
+  previewDate.textContent=editDate.value||'';
+  previewViews.textContent=editViews.value||'';
+}
+
+document.querySelectorAll('.editor-panel input, .editor-panel select').forEach(function(el){
+  el.addEventListener('input',function(){updatePreview();autoSaveDraft()});
+  el.addEventListener('change',function(){updatePreview();autoSaveDraft()});
+});
+
+/* ==================== 深色模式 ==================== */
+$('btnTheme').addEventListener('click',function(){
+  document.body.classList.toggle('dark');
+  var d=loadStore();d.darkMode=document.body.classList.contains('dark');saveStore(d);
+  updateActionsImage();
+});
+
+function updateActionsImage(){
+  var isDark=document.body.classList.contains('dark');
+  document.querySelectorAll('.tweet-actions-img, .theme-img').forEach(function(img){
+    var l=img.getAttribute('data-light-src'),dk=img.getAttribute('data-dark-src');
+    if(l) img.src=isDark?(dk||l):l;
+  });
+}
+
+new MutationObserver(function(){updateActionsImage()})
+  .observe(document.body,{attributes:true,attributeFilter:['class']});
+
+/* ==================== 预览模式 ==================== */
+var fadeTimer=null;
+var BASE_WIDTH=430;
+
+function getPageHeight(){return parseInt(editPageHeight.value)||932}
+
+function applyScale(){
+  var sw=window.innerWidth,sh=window.innerHeight,ph=getPageHeight();
+  var scW=sw/BASE_WIDTH,scH=sh/ph;
+  var sc=Math.min(scW,scH,1);
+  var dw=BASE_WIDTH*sc,dh=ph*sc;
+  var left=Math.max(0,(sw-dw)/2),top=Math.max(0,(sh-dh)/2);
+  tweetPage.style.cssText=
+    'width:'+BASE_WIDTH+'px;height:'+ph+'px;'+
+    'position:fixed;top:'+top+'px;left:'+left+'px;'+
+    'transform:scale('+sc+');transform-origin:top left;';
+}
+
+function showPreviewBtns(){
+  previewActions.classList.remove('fade-out');
+  clearTimeout(fadeTimer);
+  fadeTimer=setTimeout(function(){previewActions.classList.add('fade-out')},3500);
+}
+
+btnEnter.addEventListener('click',function(){
+  updatePreview();
+  document.body.classList.add('preview-mode');
+  window.scrollTo(0,0);
+  applyScale();
+  showPreviewBtns();
+});
+
+window.addEventListener('resize',function(){
+  if(document.body.classList.contains('preview-mode'))applyScale();
+});
+
+tweetPage.addEventListener('click',function(){showPreviewBtns()});
+
+btnBack.addEventListener('click',function(e){
+  e.stopPropagation();
+  document.body.classList.remove('preview-mode');
+  tweetPage.style.cssText='';
+  clearTimeout(fadeTimer);
+});
+
+/* ==================== 截图保存 ==================== */
+var isSaving=false;
+
+btnSaveImg.addEventListener('click',function(e){
+  e.stopPropagation();
+  if(isSaving) return;
+  isSaving=true;
+  showToast('正在缓存图片…');
+  previewActions.style.display='none';
+
+  ensureAllCached(function(){
+    showToast('正在生成截图…');
+    var ph=getPageHeight();
+    tweetPage.style.cssText='width:'+BASE_WIDTH+'px;height:'+ph+'px;position:fixed;top:0;left:0;transform:none;';
+
+    var swapped=swapToCache();
+
+    var invertFixed=[];
+    if(document.body.classList.contains('dark')){
+      tweetPage.querySelectorAll('.top-nav-img, .tweet-header-action-img').forEach(function(img){
+        if(img.src.startsWith('data:')){
+          try{
+            var ci=document.createElement('canvas');
+            var ti=new Image();ti.src=img.src;
+            ci.width=ti.width||img.naturalWidth;ci.height=ti.height||img.naturalHeight;
+            var cx=ci.getContext('2d');
+            cx.filter='invert(1)';
+            cx.drawImage(ti,0,0);
+            invertFixed.push({el:img,origSrc:img.src,origFilter:img.style.filter});
+            img.src=ci.toDataURL('image/png');
+            img.style.filter='none';
+          }catch(ex){}
+        }
+      });
+    }
+
+    setTimeout(function(){
+      html2canvas(tweetPage,{
+        width:BASE_WIDTH,height:ph,scale:2,
+        useCORS:true,backgroundColor:null
+      }).then(function(canvas){
+        swapBack(swapped);
+        invertFixed.forEach(function(o){o.el.src=o.origSrc;o.el.style.filter=o.origFilter||''});
+        var dataUrl=canvas.toDataURL('image/png');
+        saveModalImg.src=dataUrl;
+        saveModal.classList.add('show');
+        applyScale();
+        previewActions.style.display='';
+        isSaving=false;
+        showToast('图片已生成 ✓');
+      }).catch(function(err){
+        console.error(err);
+        swapBack(swapped);
+        invertFixed.forEach(function(o){o.el.src=o.origSrc;o.el.style.filter=o.origFilter||''});
+        applyScale();
+        previewActions.style.display='';
+        isSaving=false;
+        showToast('截图失败，请重试');
+      });
+    },300);
+  });
+});
+
+$('saveModalDL').addEventListener('click',function(){
+  var link=document.createElement('a');
+  link.download='tweet-'+Date.now()+'.png';
+  link.href=saveModalImg.src;
+  link.click();
+  showToast('正在下载…');
+});
+
+$('saveModalClose').addEventListener('click',function(){saveModal.classList.remove('show')});
+$('saveModalOverlay').addEventListener('click',function(){saveModal.classList.remove('show')});
+
+/* ==================== 草稿 ==================== */
+var draftTimer=null;
+function autoSaveDraft(){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,300)}
+
+function saveDraft(){
+  var d=loadStore();
+  d.draft={
+    charId:charSelect.value,avatar:editAvatar.value,
+    name:editName.value,handle:editHandle.value,verified:editVerified.checked,
+    showTranslate:editShowTranslate.checked,transLang:editTransLang.value,
+    showRate:editShowRate.checked,body:richEditor.innerHTML,
+    indent:editIndent.checked,fontSize:editFontSize.value,
+    lineHeight:editLineHeight.value,fontWeight:editFontWeight.value,
+    reply:editReply.value,retweet:editRetweet.value,
+    like:editLike.value,bookmark:editBookmark.value,
+    timeSync:editTimeSync.checked,time:editTime.value,
+    date:editDate.value,views:editViews.value,
+    pageHeight:editPageHeight.value
+  };
+  saveStore(d);
+}
+
+function loadDraft(){
+  var d=loadStore();if(!d.draft)return false;
+  var r=d.draft;
+  if(r.charId&&r.charId!=='__new__')charSelect.value=r.charId;
+  editAvatar.value=r.avatar||'';editName.value=r.name||'';
+  editHandle.value=r.handle||'';editVerified.checked=!!r.verified;
+  editShowTranslate.checked=!!r.showTranslate;editTransLang.value=r.transLang||'';
+  editShowRate.checked=!!r.showRate;
+  if(r.body&&r.body!=='<br>'&&r.body!=='<div><br></div>'){richEditor.innerHTML=r.body}
+  else{richEditor.innerHTML=''}
+  editIndent.checked=!!r.indent;
+  editFontSize.value=r.fontSize||'16';editLineHeight.value=r.lineHeight||'1.55';
+  editFontWeight.value=r.fontWeight||'580';
+  editReply.value=r.reply||'';editRetweet.value=r.retweet||'';
+  editLike.value=r.like||'';editBookmark.value=r.bookmark||'';
+  editViews.value=r.views||'';editPageHeight.value=r.pageHeight||'932';
+  if(r.timeSync===false){
+    editTimeSync.checked=false;editTime.value=r.time||'';editDate.value=r.date||'';
+    editTime.readOnly=false;editDate.readOnly=false;
+  }else{editTimeSync.checked=true}
+  return true;
+}
+
+/* ==================== 初始化 ==================== */
+function init(){
+  var d=loadStore();
+  if(d.darkMode)document.body.classList.add('dark');
+  populateCharSelect();
+  var hasDraft=loadDraft();
+  if(editTimeSync.checked)startSync();
+  checkEditorEmpty();
+  updateAvatarThumb();
+  updateActionsImage();
+  updatePreview();
+  setTimeout(startCaching,800);
+  if(hasDraft)showToast('草稿已恢复 ✓');
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>
